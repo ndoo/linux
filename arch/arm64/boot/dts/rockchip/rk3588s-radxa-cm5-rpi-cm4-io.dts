@@ -9,6 +9,7 @@
  */
 
 /dts-v1/;
+
 #include <dt-bindings/soc/rockchip,vop2.h>
 #include "rk3588s-radxa-cm5.dtsi"
 
@@ -25,12 +26,12 @@
 		stdout-path = "serial2:1500000n8";
 	};
 
-	hdmi-con {
+	hdmi0-con {
 		compatible = "hdmi-connector";
 		type = "a";
 
 		port {
-			hdmi_con_in: endpoint {
+			hdmi0_con_in: endpoint {
 				remote-endpoint = <&hdmi0_out_con>;
 			};
 		};
@@ -75,37 +76,14 @@
 		regulator-max-microvolt = <5000000>;
 		vin-supply = <&vcc12v0_dcin>;
 	};
-
-	vcc3v3_pcie2x1l0: regulator-vcc3v3-pcie2x1l0 {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc3v3_pcie2x1l0";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		enable-active-high;
-		regulator-boot-on;
-		regulator-always-on;
-		gpios = <&gpio1 RK_PD3 GPIO_ACTIVE_HIGH>;
-		startup-delay-us = <50000>;
-		vin-supply = <&vcc5v0_sys>;
-	};
-
-	usb20_reset: usb-up-regulator {
-		compatible = "regulator-fixed";
-		enable-active-low;
-		gpio = <&gpio4 RK_PA0 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb20_reset_pin>;
-		regulator-name = "usb20_reset";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-	};
-};
-
-&combphy0_ps {
-	status = "okay";
 };
 
 &hdmi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&hdmim0_tx0_cec
+		     &hdmim1_tx0_hpd
+		     &hdmim0_tx0_scl
+		     &hdmim0_tx0_sda>;
 	status = "okay";
 };
 
@@ -117,7 +95,7 @@
 
 &hdmi0_out {
 	hdmi0_out_con: endpoint {
-		remote-endpoint = <&hdmi_con_in>;
+		remote-endpoint = <&hdmi0_con_in>;
 	};
 };
 
@@ -163,8 +141,10 @@
 };
 
 &pcie2x1l2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pcie20x1_2_perstn_m0>;
 	reset-gpios = <&gpio3 RK_PD1 GPIO_ACTIVE_HIGH>;
-	vpcie3v3-supply = <&vcc3v3_pcie2x1l0>;
+//	vpcie3v3-supply = <&vcc_3v3_s3>;
 	status = "okay";
 };
 
@@ -176,9 +156,9 @@
 		};
 	};
 
-	usb {
-		usb20_reset_pin: usb20-reset {
-			rockchip,pins = <4 RK_PA0 RK_FUNC_GPIO &pcfg_pull_up>;
+	pcie {
+		pcie20x1_2_perstn_m0: pcie20x1-2-perstn-m0 {
+			rockchip,pins = <3 RK_PD1 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
@@ -188,12 +168,9 @@
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
 	disable-wp;
-	max-frequency = <200000000>;
 	no-sdio;
 	no-mmc;
 	sd-uhs-sdr104;
-	pinctrl-names = "default";
-	pinctrl-0 = <&sdmmc_bus4 &sdmmc_clk &sdmmc_cmd &sdmmc_det>;
 	vmmc-supply = <&vcc_3v3_s3>;
 	vqmmc-supply = <&vccio_sd_s0>;
 	status = "okay";
@@ -207,62 +184,22 @@
 	status = "okay";
 };
 
-&u2phy2 {
-	status = "okay";
-};
-
-&u2phy2_host {
-	status = "okay";
-	phy-supply = <&vcc5v0_sys>;
-};
-
-&u2phy3 {
-	status = "okay";
-};
-
-&u2phy3_host {
-	phy-supply = <&vcc5v0_sys>;
-	status = "okay";
-};
-
 &uart2 {
-	pinctrl-names = "default";
 	pinctrl-0 = <&uart2m0_xfer>;
 	status = "okay";
 };
 
 &usbdp_phy0 {
-	status = "okay";
-	rockchip,dp-lane-mux = <2 3>;
-};
-
-&usb_host0_ehci {
-	status = "okay";
-};
-
-&usb_host0_ohci {
-	status = "okay";
-};
-
-&usb_host0_xhci {
-	dr_mode = "host";
-	status = "okay";
-};
-
-&usb_host1_ehci {
-	status = "okay";
-};
-
-&usb_host1_ohci {
-	status = "okay";
-};
-
-&usb_host2_xhci {
+    maximum-speed = "high-speed";
 	status = "okay";
 };
 
 &vop {
 	status = "okay";
+};
+
+&vcc_sysin {
+	vin-supply = <&vcc5v0_sys>;
 };
 
 &vop_mmu {

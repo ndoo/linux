@@ -9,14 +9,14 @@
  * https://dl.radxa.com/cm5/v2210/radxa_cm5_v2210_schematic.pdf
  */
 
+/dts-v1/;
+
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/pinctrl/rockchip.h>
 #include "rk3588s.dtsi"
 
 / {
-	compatible = "radxa,cm5", "rockchip,rk3588s";
-
 	aliases {
 		mmc0 = &sdhci;
 	};
@@ -51,6 +51,34 @@
 		regulator-max-microvolt = <1100000>;
 		vin-supply = <&vcc_sysin>;
 	};
+
+	vcc_3v3_pmu: regulator-vcc-3v3-pmu {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_3v3_pmu";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vcc_3v3_s3>;
+	};
+
+	vcc_3v3_s0: regulator-vcc-3v3-s0 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_3v3_s0";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vcc_3v3_s3>;
+	};
+};
+
+&combphy0_ps {
+	status = "okay";
+};
+
+&combphy2_psu {
+	status = "okay";
 };
 
 &cpu_b0 {
@@ -130,7 +158,7 @@
 	};
 
 	vdd_cpu_big1_s0: regulator@43 {
-		compatible = "rockchip,rk8602";
+		compatible = "rockchip,rk8603", "rockchip,rk8602";
 		reg = <0x43>;
 		fcs,suspend-voltage-selector = <1>;
 		regulator-name = "vdd_cpu_big1_s0";
@@ -146,18 +174,17 @@
 		};
 	};
 
-	eeprom:	at24c16@50 {
-		compatible = "atmel,24c16";
-		pagesize = <16>;
+	eeprom@50 {
+		compatible = "belling,bl24c16a", "atmel,24c16";
 		reg = <0x50>;
-		status = "okay";
+		pagesize = <16>;
+		vcc-supply = <&vcc_3v3_pmu>;
 	};
 };
 
 &i2c2 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c2m0_xfer>;
 	status = "okay";
+
 	vdd_npu_s0: regulator@42 {
 		compatible = "rockchip,rk8602";
 		reg = <0x42>;
@@ -177,9 +204,15 @@
 };
 
 &mdio1 {
-	rgmii_phy1: phy@1 {
-		compatible = "ethernet-phy-ieee802.3-c22";
+	rgmii_phy1: ethernet-phy@1 {
+		/* RTL8211FS(I)(-VS) */
+		compatible = "ethernet-phy-id001c.c916";
 		reg = <0x1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&gmac1_rstn>;
+		reset-assert-us = <20000>;
+		reset-deassert-us = <100000>;
+		reset-gpios = <&gpio3 RK_PB2 GPIO_ACTIVE_LOW>;
 	};
 };
 
@@ -187,36 +220,52 @@
 	domain-supply = <&vdd_gpu_s0>;
 };
 
+&pinctrl {
+	mdio {
+		gmac1_rstn: gmac1-rstn {
+			rockchip,pins = <3 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};
+
+&saradc {
+	vref-supply = <&vcca_1v8_s0>;
+	status = "okay";
+};
+
 &sdhci {
 	bus-width = <8>;
+	mmc-hs400-1_8v;
+	mmc-hs400-enhanced-strobe;
 	no-sdio;
 	no-sd;
 	non-removable;
-	max-frequency = <200000000>;
-	mmc-hs400-1_8v;
-	mmc-hs400-enhanced-strobe;
-	mmc-hs200-1_8v;
 	status = "okay";
 };
 
 &spi2 {
+	status = "okay";
 	assigned-clocks = <&cru CLK_SPI2>;
 	assigned-clock-rates = <200000000>;
 	num-cs = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi2m2_cs0 &spi2m2_pins>;
-	status = "okay";
 
 	pmic@0 {
 		compatible = "rockchip,rk806";
+		spi-max-frequency = <1000000>;
 		reg = <0x0>;
+
 		interrupt-parent = <&gpio0>;
 		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
-		pinctrl-names = "default", "pmic-power-off";
+
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		pinctrl-names = "default";
 		pinctrl-0 = <&pmic_pins>, <&rk806_dvs1_null>,
-		<&rk806_dvs2_null>, <&rk806_dvs3_null>;
-		pinctrl-1 = <&rk806_dvs1_pwrdn>;
-		spi-max-frequency = <1000000>;
+			    <&rk806_dvs2_null>, <&rk806_dvs3_null>;
+
 		system-power-controller;
 
 		vcc1-supply = <&vcc_sysin>;
@@ -235,96 +284,23 @@
 		vcc14-supply = <&vcc_1v1_nldo_s3>;
 		vcca-supply = <&vcc_sysin>;
 
-		gpio-controller;
-		#gpio-cells = <2>;
+		rk806_dvs1_null: dvs1-null-pins {
+			pins = "gpio_pwrctrl1";
+			function = "pin_fun0";
+		};
 
-		pinctrl_rk806: pinctrl_rk806 {
-			gpio-controller;
-			#gpio-cells = <2>;
+		rk806_dvs2_null: dvs2-null-pins {
+			pins = "gpio_pwrctrl2";
+			function = "pin_fun0";
+		};
 
-			rk806_dvs1_null: rk806_dvs1_null {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun0";
-			};
-
-			rk806_dvs1_slp: rk806_dvs1_slp {
-				pins = "gpio_pwrctrl1";
-				function = "pin_fun1";
-			};
-
-			rk806_dvs1_pwrdn: rk806_dvs1_pwrdn {
-				pins = "gpio_pwrctrl1";
-				function = "pin_fun2";
-			};
-
-			rk806_dvs1_rst: rk806_dvs1_rst {
-				pins = "gpio_pwrctrl1";
-				function = "pin_fun3";
-			};
-
-			rk806_dvs2_null: rk806_dvs2_null {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun0";
-			};
-
-			rk806_dvs2_slp: rk806_dvs2_slp {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun1";
-			};
-
-			rk806_dvs2_pwrdn: rk806_dvs2_pwrdn {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun2";
-			};
-
-			rk806_dvs2_rst: rk806_dvs2_rst {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun3";
-			};
-
-			rk806_dvs2_dvs: rk806_dvs2_dvs {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun4";
-			};
-
-			rk806_dvs2_gpio: rk806_dvs2_gpio {
-				pins = "gpio_pwrctrl2";
-				function = "pin_fun5";
-			};
-
-			rk806_dvs3_null: rk806_dvs3_null {
-				pins = "gpio_pwrctrl3";
-				function = "pin_fun0";
-			};
-
-			rk806_dvs3_slp: rk806_dvs3_slp {
-				pins = "gpio_pwrctrl3";
-				function = "pin_fun1";
-			};
-
-			rk806_dvs3_pwrdn: rk806_dvs3_pwrdn {
-				pins = "gpio_pwrctrl3";
-				function = "pin_fun2";
-			};
-
-			rk806_dvs3_rst: rk806_dvs3_rst {
-				pins = "gpio_pwrctrl3";
-				function = "pin_fun3";
-			};
-
-			rk806_dvs3_dvs: rk806_dvs3_dvs {
-				pins = "gpio_pwrctrl3";
-				function = "pin_fun4";
-			};
-
-			rk806_dvs3_gpio: rk806_dvs3_gpio {
-				pins = "gpio_pwrctrl3";
-				function = "pin_fun5";
-			};
+		rk806_dvs3_null: dvs3-null-pins {
+			pins = "gpio_pwrctrl3";
+			function = "pin_fun0";
 		};
 
 		regulators {
-			vdd_gpu_s0: vdd_gpu_mem_s0: dcdc-reg1 {
+			vdd_gpu_s0: dcdc-reg1 {
 				regulator-name = "vdd_gpu_s0";
 				regulator-boot-on;
 				regulator-min-microvolt = <550000>;
@@ -337,7 +313,7 @@
 				};
 			};
 
-			vdd_cpu_lit_s0: vdd_cpu_lit_mem_s0: dcdc-reg2 {
+			vdd_cpu_lit_s0: dcdc-reg2 {
 				regulator-name = "vdd_cpu_lit_s0";
 				regulator-always-on;
 				regulator-boot-on;
@@ -350,8 +326,8 @@
 				};
 			};
 
-			vdd_log_s0: dcdc-reg3 {
-				regulator-name = "vdd_log_s0";
+			vdd_logic_s0: dcdc-reg3 {
+				regulator-name = "vdd_logic_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <675000>;
@@ -359,12 +335,12 @@
 				regulator-ramp-delay = <12500>;
 
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					regulator-on-in-suspend;
 					regulator-suspend-microvolt = <750000>;
 				};
 			};
 
-			vdd_vdenc_s0: vdd_vdenc_mem_s0: dcdc-reg4 {
+			vdd_vdenc_s0: dcdc-reg4 {
 				regulator-name = "vdd_vdenc_s0";
 				regulator-always-on;
 				regulator-boot-on;
@@ -402,7 +378,7 @@
 			};
 
 			vcc_2v0_pldo_s3: dcdc-reg7 {
-				regulator-name = "vdd_2v0_pldo_s3";
+				regulator-name = "vcc_2v0_pldo_s3";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <2000000>;
@@ -438,8 +414,8 @@
 				};
 			};
 
-			vcc_1v8_s3: dcdc-reg10 {
-				regulator-name = "vcc_1v8_s3";
+			vcc1v8_pmu_ddr_s3: dcdc-reg10 {
+				regulator-name = "vcc1v8_pmu_ddr_s3";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <1800000>;
@@ -451,19 +427,7 @@
 				};
 			};
 
-			avcc_1v8_s0: pldo-reg1 {
-				regulator-name = "avcc_1v8_s0";
-				regulator-always-on;
-				regulator-boot-on;
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-
-				regulator-state-mem {
-					regulator-off-in-suspend;
-				};
-			};
-
-			vcc_1v8_s0: pldo-reg2 {
+			vcc_1v8_s0: pldo-reg1 {
 				regulator-name = "vcc_1v8_s0";
 				regulator-always-on;
 				regulator-boot-on;
@@ -471,13 +435,26 @@
 				regulator-max-microvolt = <1800000>;
 
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					regulator-on-in-suspend;
 					regulator-suspend-microvolt = <1800000>;
 				};
 			};
 
-			avdd_1v2_s0: pldo-reg3 {
-				regulator-name = "avdd_1v2_s0";
+			vcca_1v8_s0: pldo-reg2 {
+				regulator-name = "vcca_1v8_s0";
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+
+				regulator-state-mem {
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <1800000>;
+				};
+			};
+
+			vdda_1v2_s0: pldo-reg3 {
+				regulator-name = "vdda_1v2_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <1200000>;
@@ -488,16 +465,16 @@
 				};
 			};
 
-			vcc_3v3_s0: pldo-reg4 {
-				regulator-name = "vcc_3v3_s0";
+			vcca_3v3_s0: pldo-reg4 {
+				regulator-name = "vcca_3v3_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-ramp-delay = <12500>;
 
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					regulator-on-in-suspend;
+					regulator-suspend-microvolt = <3300000>;
 				};
 			};
 
@@ -507,7 +484,6 @@
 				regulator-boot-on;
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-ramp-delay = <12500>;
 
 				regulator-state-mem {
 					regulator-off-in-suspend;
@@ -540,21 +516,21 @@
 				};
 			};
 
-			vdd_ddr_pll_s0: nldo-reg2 {
-				regulator-name = "vdd_ddr_pll_s0";
+			vdda_ddr_pll_s0: nldo-reg2 {
+				regulator-name = "vdda_ddr_pll_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <850000>;
 
 				regulator-state-mem {
-					regulator-off-in-suspend;
+					regulator-on-in-suspend;
 					regulator-suspend-microvolt = <850000>;
 				};
 			};
 
-			avdd_0v75_s0: nldo-reg3 {
-				regulator-name = "avdd_0v75_s0";
+			vdda_0v75_s0: nldo-reg3 {
+				regulator-name = "vdda_0v75_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
@@ -565,8 +541,8 @@
 				};
 			};
 
-			vdd_0v85_s0: nldo-reg4 {
-				regulator-name = "vdd_0v85_s0";
+			vdda_0v85_s0: nldo-reg4 {
+				regulator-name = "vdda_0v85_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <850000>;
@@ -577,8 +553,8 @@
 				};
 			};
 
-			vdd_0v75_s0: nldo-reg5 {
-				regulator-name = "vdd_0v75_s0";
+			hdmi_vdda0v85_s0: nldo-reg5 {
+				regulator-name = "hdmi_vdda0v85_s0";
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
@@ -590,4 +566,10 @@
 			};
 		};
 	};
+};
+
+&tsadc {
+	rockchip,hw-tshut-mode = <1>; /* tshut mode 0:CRU 1:GPIO */
+	rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
+	status = "okay";
 };
