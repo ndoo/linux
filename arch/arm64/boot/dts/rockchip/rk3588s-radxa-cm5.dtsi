@@ -90,13 +90,15 @@
 	phy-handle = <&rgmii_phy1>;
 	phy-mode = "rgmii-id";
 	phy-supply = <&vcc_3v3_s0>;
-	pinctrl-names = "default";
 	pinctrl-0 = <&gmac1_miim
 	&gmac1_tx_bus2
 	&gmac1_rx_bus2
 	&gmac1_rgmii_clk
 	&gmac1_rgmii_bus
 	&gmac1_clkinout>;
+	pinctrl-names = "default";
+	tx_delay = <0x3a>;
+	rx_delay = <0x3e>;
 	status = "okay";
 };
 
